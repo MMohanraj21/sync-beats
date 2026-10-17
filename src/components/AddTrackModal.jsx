@@ -1,39 +1,15 @@
-import React, { useState } from 'react';
-import { X, Youtube, Music, Radio, Plus, Play, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Search, Play, Plus, Sparkles, Music, Loader2, Link2, Upload } from 'lucide-react';
 
-const PRESET_VIBES = [
-  {
-    title: 'Nenjame Nenjame (Doctor)',
-    artist: 'Anirudh Ravichander',
-    source: 'youtube',
-    url: 'https://www.youtube.com/watch?v=3V94H62zWoc',
-    trackId: '3V94H62zWoc',
-    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80'
-  },
-  {
-    title: 'Starboy (Official)',
-    artist: 'The Weeknd ft. Daft Punk',
-    source: 'youtube',
-    url: 'https://www.youtube.com/watch?v=34Na4j8AVgA',
-    trackId: '34Na4j8AVgA',
-    cover: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=600&auto=format&fit=crop&q=80'
-  },
-  {
-    title: 'Kanave Kanave (David)',
-    artist: 'Anirudh Ravichander',
-    source: 'youtube',
-    url: 'https://www.youtube.com/watch?v=1F3hm6MfR1k',
-    trackId: '1F3hm6MfR1k',
-    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80'
-  },
-  {
-    title: 'Chill Lofi Beats to Relax',
-    artist: 'Lofi Girl',
-    source: 'youtube',
-    url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
-    trackId: 'jfKfPfyJRdk',
-    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80'
-  }
+const SUGGESTIONS = [
+  'Anirudh hits',
+  'Yuvan melodies',
+  'AR Rahman romantic',
+  'Harris Jayaraj',
+  'Kanave Kanave',
+  'Chill lofi beats',
+  'Tamil 90s hits',
+  'Starboy The Weeknd'
 ];
 
 export default function AddTrackModal({
@@ -42,36 +18,68 @@ export default function AddTrackModal({
   onPlayTrack,
   onAddToQueue
 }) {
-  const [activeTab, setActiveTab] = useState('youtube'); // 'youtube' | 'mp3' | 'spotify'
-  const [title, setTitle] = useState('');
-  const [artist, setArtist] = useState('');
-  const [url, setUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState('search'); // 'search' | 'link' | 'mp3'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  // Direct link inputs
+  const [customUrl, setCustomUrl] = useState('');
+  const [customTitle, setCustomTitle] = useState('');
+  const [customArtist, setCustomArtist] = useState('');
+
+  // Initial popular search on mount or tab select
+  useEffect(() => {
+    if (isOpen && searchResults.length === 0 && !hasSearched) {
+      handleSearch('Anirudh love songs');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSelectPreset = (preset, mode = 'play') => {
-    if (mode === 'queue') {
-      onAddToQueue(preset);
-    } else {
-      onPlayTrack(preset);
+  const handleSearch = async (queryToSearch) => {
+    const q = (queryToSearch || searchQuery).trim();
+    if (!q) return;
+
+    setIsLoading(true);
+    setHasSearched(true);
+    if (queryToSearch) setSearchQuery(queryToSearch);
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) {
+        setSearchResults(data.results);
+      }
+    } catch (err) {
+      console.error('Failed to search songs:', err);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handlePlay = (track) => {
+    onPlayTrack(track);
     onClose();
   };
 
-  const handleCustomSubmit = (e, mode = 'play') => {
-    e.preventDefault();
-    if (!url.trim()) return;
+  const handleQueue = (track) => {
+    onAddToQueue(track);
+    onClose();
+  };
 
-    let track = {
-      id: `${activeTab}-${Date.now()}`,
-      source: activeTab,
-      title: title.trim() || 'Custom Track',
-      artist: artist.trim() || (activeTab === 'youtube' ? 'YouTube Audio' : 'Audio Track'),
-      url: url.trim(),
-      cover: activeTab === 'youtube'
-        ? 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80'
+  const handleCustomSubmit = (mode = 'play') => {
+    if (!customUrl.trim()) return;
+
+    const track = {
+      id: `custom-${Date.now()}`,
+      source: customUrl.includes('spotify.com') ? 'spotify' : 'youtube',
+      title: customTitle.trim() || 'Custom Song',
+      artist: customArtist.trim() || 'Online Audio',
+      url: customUrl.trim(),
+      cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+      duration: 210
     };
 
     if (mode === 'queue') {
@@ -79,21 +87,23 @@ export default function AddTrackModal({
     } else {
       onPlayTrack(track);
     }
-
-    setUrl('');
-    setTitle('');
-    setArtist('');
+    setCustomUrl('');
+    setCustomTitle('');
+    setCustomArtist('');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-3xl apple-glass-card border border-white/10 p-6 shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
+      <div className="w-full max-w-xl rounded-3xl apple-glass-card border border-white/10 p-5 sm:p-6 shadow-2xl flex flex-col max-h-[88vh]">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+        <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">Add Song to Session</h2>
-            <p className="text-xs text-white/50">Choose YouTube, MP3 or Spotify</p>
+            <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+              <span>Search & Play Any Song</span>
+              <Sparkles size={16} className="text-[#fa2d48]" />
+            </h2>
+            <p className="text-xs text-white/50">Zero ads • Audio-only • Synced with your friend</p>
           </div>
           <button
             onClick={onClose}
@@ -103,61 +113,144 @@ export default function AddTrackModal({
           </button>
         </div>
 
-        {/* Source Switcher Tabs */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 my-4 bg-white/5 rounded-2xl border border-white/10">
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-1.5 p-1 my-3 bg-white/5 rounded-2xl border border-white/5 text-xs font-semibold">
           <button
-            onClick={() => setActiveTab('youtube')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'youtube' ? 'bg-[#fa2d48] text-white shadow-md' : 'text-white/60 hover:text-white'
+            onClick={() => setActiveTab('search')}
+            className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'search' ? 'bg-[#fa2d48] text-white shadow-md' : 'text-white/60 hover:text-white'
             }`}
           >
-            <Youtube size={15} />
-            <span>YouTube</span>
+            <Search size={14} />
+            <span>Search YouTube</span>
           </button>
           <button
-            onClick={() => setActiveTab('mp3')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'mp3' ? 'bg-[#fa2d48] text-white shadow-md' : 'text-white/60 hover:text-white'
+            onClick={() => setActiveTab('link')}
+            className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'link' ? 'bg-[#fa2d48] text-white shadow-md' : 'text-white/60 hover:text-white'
             }`}
           >
-            <Music size={15} />
-            <span>MP3 Audio</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('spotify')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'spotify' ? 'bg-emerald-600 text-white shadow-md' : 'text-white/60 hover:text-white'
-            }`}
-          >
-            <Radio size={15} />
-            <span>Spotify</span>
+            <Link2 size={14} />
+            <span>Paste Link</span>
           </button>
         </div>
 
-        {/* Form */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          <form className="space-y-3">
+        {activeTab === 'search' && (
+          <div className="flex flex-col flex-1 min-h-0 space-y-3">
+            {/* Search Input Box */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSearch();
+              }}
+              className="relative"
+            >
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search song, movie or artist name..."
+                className="w-full bg-white/10 border border-white/15 rounded-2xl pl-11 pr-24 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#fa2d48]/70 focus:bg-white/15 transition-all shadow-inner"
+              />
+              <Search size={18} className="absolute left-4 top-3.5 text-white/40" />
+              <button
+                type="submit"
+                disabled={isLoading || !searchQuery.trim()}
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-4 rounded-xl bg-[#fa2d48] hover:bg-[#ff5e62] disabled:opacity-40 text-xs font-semibold text-white flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
+              >
+                {isLoading ? <Loader2 size={13} className="animate-spin" /> : 'Search'}
+              </button>
+            </form>
+
+            {/* Quick Suggestion Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {SUGGESTIONS.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => handleSearch(tag)}
+                  className="apple-glass-pill hover:bg-white/15 text-[11px] text-white/70 hover:text-white whitespace-nowrap px-3 py-1 rounded-full transition-all cursor-pointer active:scale-95"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Results List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {isLoading ? (
+                <div className="py-14 flex flex-col items-center justify-center text-white/50 space-y-2">
+                  <Loader2 size={26} className="animate-spin text-[#fa2d48]" />
+                  <p className="text-xs font-medium">Finding songs for you & your friend...</p>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="py-12 text-center text-white/40 space-y-1">
+                  <p className="text-sm font-medium">No songs found</p>
+                  <p className="text-xs text-white/30">Type a song name or movie title above</p>
+                </div>
+              ) : (
+                searchResults.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-2.5 rounded-2xl apple-glass-pill hover:bg-white/10 flex items-center justify-between gap-3 group transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-xl bg-white/10 overflow-hidden shrink-0 relative shadow-sm">
+                        <img
+                          src={item.cover}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                        {item.durationFormatted && (
+                          <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/75 text-[9px] font-medium text-white/90">
+                            {item.durationFormatted}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white truncate">{item.title}</p>
+                        <p className="text-[11px] text-white/50 truncate mt-0.5">{item.artist}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handlePlay(item)}
+                        className="apple-glow-button text-xs font-semibold px-3 py-1.5 rounded-xl text-white flex items-center gap-1 cursor-pointer active:scale-95 shadow-sm"
+                        title="Play Now for both"
+                      >
+                        <Play size={12} className="fill-white" />
+                        <span>Play</span>
+                      </button>
+                      <button
+                        onClick={() => handleQueue(item)}
+                        className="apple-glass-pill hover:bg-white/15 p-2 rounded-xl text-white/70 hover:text-white transition-all cursor-pointer active:scale-95"
+                        title="Add to queue"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'link' && (
+          <div className="flex-1 overflow-y-auto space-y-3 py-2">
             <div>
               <label className="block text-[11px] font-medium text-white/60 mb-1.5 uppercase tracking-wider">
-                {activeTab === 'youtube' && 'YouTube URL / Link'}
-                {activeTab === 'mp3' && 'Direct MP3 Stream URL'}
-                {activeTab === 'spotify' && 'Spotify Track URL / ID'}
+                Direct YouTube / Spotify Link
               </label>
               <input
                 type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder={
-                  activeTab === 'youtube'
-                    ? 'https://www.youtube.com/watch?v=...'
-                    : activeTab === 'mp3'
-                    ? 'https://example.com/song.mp3'
-                    : 'https://open.spotify.com/track/...'
-                }
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#fa2d48]/50 focus:bg-white/10 transition-all"
+                value={customUrl}
+                onChange={(e) => setCustomUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... or Spotify link"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#fa2d48]/50 transition-all"
               />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-white/60 mb-1.5 uppercase tracking-wider">
@@ -165,9 +258,9 @@ export default function AddTrackModal({
                 </label>
                 <input
                   type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. En Kadhal Solla"
+                  value={customTitle}
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  placeholder="Song name"
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#fa2d48]/50 transition-all"
                 />
               </div>
@@ -177,74 +270,33 @@ export default function AddTrackModal({
                 </label>
                 <input
                   type="text"
-                  value={artist}
-                  onChange={(e) => setArtist(e.target.value)}
-                  placeholder="e.g. Yuvan Shankar Raja"
+                  value={customArtist}
+                  onChange={(e) => setCustomArtist(e.target.value)}
+                  placeholder="Artist name"
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#fa2d48]/50 transition-all"
                 />
               </div>
             </div>
-
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={(e) => handleCustomSubmit(e, 'play')}
-                disabled={!url.trim()}
+                onClick={() => handleCustomSubmit('play')}
+                disabled={!customUrl.trim()}
                 className="flex-1 apple-glow-button disabled:opacity-40 text-xs sm:text-sm font-semibold py-3 rounded-2xl text-white flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-98"
               >
                 <Play size={15} className="fill-white" /> Play Now
               </button>
               <button
                 type="button"
-                onClick={(e) => handleCustomSubmit(e, 'queue')}
-                disabled={!url.trim()}
+                onClick={() => handleCustomSubmit('queue')}
+                disabled={!customUrl.trim()}
                 className="apple-glass-pill hover:bg-white/15 disabled:opacity-40 text-xs sm:text-sm font-semibold px-4 py-3 rounded-2xl text-white flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
               >
                 <Plus size={15} /> Add to Queue
               </button>
             </div>
-          </form>
-
-          {/* Quick Presets / Trending Hits */}
-          <div className="pt-3 border-t border-white/10">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-white/70 mb-2">
-              <Sparkles size={14} className="text-[#fa2d48]" />
-              <span>Instant Hits & Presets</span>
-            </div>
-            <div className="space-y-2">
-              {PRESET_VIBES.map((preset, i) => (
-                <div
-                  key={i}
-                  className="p-2.5 rounded-2xl apple-glass-pill hover:bg-white/10 flex items-center justify-between gap-3 group transition-all"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img src={preset.cover} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{preset.title}</p>
-                      <p className="text-[10px] text-white/50 truncate">{preset.artist}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleSelectPreset(preset, 'play')}
-                      className="p-2 rounded-xl bg-white/10 hover:bg-[#fa2d48] text-white transition-all cursor-pointer active:scale-95"
-                      title="Play Now"
-                    >
-                      <Play size={12} className="fill-white" />
-                    </button>
-                    <button
-                      onClick={() => handleSelectPreset(preset, 'queue')}
-                      className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-white/70 hover:text-white transition-all cursor-pointer active:scale-95"
-                      title="Add to Queue"
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

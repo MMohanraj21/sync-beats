@@ -79,6 +79,70 @@ app.post('/api/upload-mp3', upload.single('audio'), (req, res) => {
   res.json({ success: true, track });
 });
 
+// YouTube In-App Search endpoint (No API key needed)
+app.get('/api/search', async (req, res) => {
+  const query = req.query.q;
+  if (!query || !query.trim()) {
+    return res.status(400).json({ error: 'Query parameter "q" is required' });
+  }
+
+  try {
+    const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query.trim())}`;
+    const response = await fetch(ytUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+      }
+    });
+
+    const html = await response.text();
+    const match = html.match(/var ytInitialData = ({.*?});<\/script>/s) || html.match(/ytInitialData\s*=\s*({.+?});/);
+
+    if (!match) {
+      return res.json({ results: [] });
+    }
+
+    const data = JSON.parse(match[1]);
+    const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+
+    const results = [];
+    for (const item of contents) {
+      const v = item.videoRenderer;
+      if (v && v.videoId) {
+        // Parse approximate duration in seconds
+        const durText = v.lengthText?.simpleText || '3:30';
+        const parts = durText.split(':').map(Number);
+        let durSec = 210;
+        if (parts.length === 2) durSec = parts[0] * 60 + parts[1];
+        else if (parts.length === 3) durSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+
+        // Best thumbnail
+        const thumbs = v.thumbnail?.thumbnails || [];
+        const thumbUrl = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`;
+
+        results.push({
+          id: `yt-${v.videoId}`,
+          source: 'youtube',
+          videoId: v.videoId,
+          trackId: v.videoId,
+          title: v.title?.runs?.[0]?.text || 'Unknown Song',
+          artist: v.ownerText?.runs?.[0]?.text || 'YouTube Artist',
+          duration: durSec,
+          durationFormatted: durText,
+          cover: thumbUrl,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`
+        });
+
+        if (results.length >= 15) break;
+      }
+    }
+
+    res.json({ results });
+  } catch (err) {
+    console.error('YouTube search error:', err);
+    res.status(500).json({ error: 'Failed to search YouTube', details: err.message });
+  }
+});
+
 // Production: serve built static files if exists
 const distDir = path.join(__dirname, '../dist');
 if (fs.existsSync(distDir)) {

@@ -13,13 +13,9 @@ import {
   MessageSquare,
   Sparkles,
   Wifi,
-  ExternalLink,
-  Heart,
-  Flame,
-  Radio,
+  Search,
   Disc3,
-  Youtube,
-  Music
+  Heart
 } from 'lucide-react';
 
 import Header from './components/Header';
@@ -85,17 +81,14 @@ export default function App() {
     const selectedRoom = roomFromUrl || generateRoomId();
     setRoomId(selectedRoom);
 
-    // Update URL without reloading
     if (!roomFromUrl) {
       window.history.replaceState({}, '', `?room=${selectedRoom}`);
     }
 
-    // Default username from localStorage or generate
     const savedName = localStorage.getItem('syncbeats_username');
     const defaultUser = savedName || `Listener_${Math.floor(10 + Math.random() * 89)}`;
     setUsername(defaultUser);
 
-    // Initialize Socket
     const newSocket = io({
       transports: ['websocket', 'polling']
     });
@@ -162,11 +155,10 @@ export default function App() {
     newSocket.on('floating-reaction', (reaction) => {
       const reactionWithPos = {
         ...reaction,
-        x: 20 + Math.random() * 60 // Random spread across center of screen
+        x: 20 + Math.random() * 60
       };
       setReactions((prev) => [...prev, reactionWithPos]);
 
-      // Remove after 3.2s
       setTimeout(() => {
         setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
       }, 3200);
@@ -179,7 +171,6 @@ export default function App() {
     };
   }, []);
 
-  // Format seconds to mm:ss
   const formatTime = (seconds) => {
     if (isNaN(seconds) || seconds < 0) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -187,7 +178,6 @@ export default function App() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Playback Control Handlers
   const handleTogglePlay = () => {
     if (!socket) return;
     const nextState = !isPlaying;
@@ -271,101 +261,143 @@ export default function App() {
         queueCount={queue.length}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 relative z-10 max-w-5xl w-full mx-auto px-4 py-6 sm:py-10 flex flex-col items-center justify-between">
+      {/* Hidden Audio Engines */}
+      {currentTrack.source === 'youtube' && (
+        <YouTubePlayer
+          track={currentTrack}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          onPlay={(cur) => {
+            if (!isPlaying) {
+              setIsPlaying(true);
+              socket?.emit('sync-play', { roomId, currentTime: cur });
+            }
+          }}
+          onPause={(cur) => {
+            if (isPlaying) {
+              setIsPlaying(false);
+              socket?.emit('sync-pause', { roomId, currentTime: cur });
+            }
+          }}
+          onProgress={(cur, dur) => {
+            setCurrentTime(cur);
+            if (dur && dur > 0) setDuration(dur);
+          }}
+          volume={isMuted ? 0 : volume}
+        />
+      )}
+
+      {currentTrack.source === 'mp3' && (
+        <Mp3Player
+          track={currentTrack}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          onPlay={(cur) => {
+            if (!isPlaying) {
+              setIsPlaying(true);
+              socket?.emit('sync-play', { roomId, currentTime: cur });
+            }
+          }}
+          onPause={(cur) => {
+            if (isPlaying) {
+              setIsPlaying(false);
+              socket?.emit('sync-pause', { roomId, currentTime: cur });
+            }
+          }}
+          onProgress={(cur, dur) => {
+            setCurrentTime(cur);
+            if (dur && dur > 0) setDuration(dur);
+          }}
+          onTrackChange={handleTrackChange}
+          volume={isMuted ? 0 : volume}
+        />
+      )}
+
+      {currentTrack.source === 'spotify' && (
+        <SpotifyPlayer
+          track={currentTrack}
+          isPlaying={isPlaying}
+        />
+      )}
+
+      {/* Main Content Area: Pure Music Showcase */}
+      <main className="flex-1 relative z-10 max-w-xl w-full mx-auto px-4 py-5 flex flex-col items-center justify-between">
+        
+        {/* Instant In-App Search Bar Trigger */}
+        <div className="w-full mb-4">
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="w-full apple-glass-pill hover:bg-white/10 active:scale-[0.99] text-left px-4 py-3 rounded-2xl flex items-center justify-between gap-3 text-white/70 transition-all cursor-pointer shadow-lg group border border-white/10"
+          >
+            <div className="flex items-center gap-2.5">
+              <Search size={16} className="text-[#fa2d48] group-hover:scale-110 transition-transform" />
+              <span className="text-xs sm:text-sm font-medium text-white/80">
+                Search songs, movies, artists on YouTube...
+              </span>
+            </div>
+            <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#fa2d48]/20 text-[#fa2d48] uppercase border border-[#fa2d48]/30">
+              SEARCH
+            </span>
+          </button>
+        </div>
+
         {/* Sync Status Badge */}
-        <div className="mb-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full apple-glass-pill shadow-sm">
-          <Wifi size={13} className={isConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'} />
-          <span className="text-xs font-medium text-white/80">
-            {users.length > 1 ? `Synced with ${users.length - 1} friend` : 'Waiting for friend to join...'}
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-white/60">
-            {currentTrack.source?.toUpperCase()}
+        <div className="mb-3 inline-flex items-center gap-2 px-3.5 py-1 rounded-full apple-glass-pill shadow-sm">
+          <Wifi size={12} className={isConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'} />
+          <span className="text-[11px] font-medium text-white/80">
+            {users.length > 1 ? `Synced with ${users.length - 1} friend` : 'Waiting for friend to join room...'}
           </span>
         </div>
 
-        {/* Player Component Switcher based on Source */}
-        <div className="w-full max-w-xl mx-auto my-2">
-          {currentTrack.source === 'youtube' && (
-            <YouTubePlayer
-              track={currentTrack}
-              isPlaying={isPlaying}
-              currentTime={currentTime}
-              onPlay={(cur) => {
-                if (!isPlaying) {
-                  setIsPlaying(true);
-                  socket?.emit('sync-play', { roomId, currentTime: cur });
-                }
-              }}
-              onPause={(cur) => {
-                if (isPlaying) {
-                  setIsPlaying(false);
-                  socket?.emit('sync-pause', { roomId, currentTime: cur });
-                }
-              }}
-              onProgress={(cur, dur) => {
-                setCurrentTime(cur);
-                if (dur && dur > 0) setDuration(dur);
-              }}
-              volume={isMuted ? 0 : volume}
-            />
-          )}
+        {/* Center: Apple Music Album Artwork Showcase (Audio-Only, No Video) */}
+        <div className="relative my-4 flex flex-col items-center">
+          {/* Dynamic Ambient Glow matching artwork */}
+          <div
+            className={`absolute -inset-6 rounded-3xl blur-3xl transition-all duration-1000 ${
+              isPlaying
+                ? 'opacity-80 bg-gradient-to-tr from-[#fa2d48]/50 via-purple-600/30 to-blue-500/40 scale-105'
+                : 'opacity-20 bg-white/10'
+            }`}
+          />
 
-          {currentTrack.source === 'mp3' && (
-            <Mp3Player
-              track={currentTrack}
-              isPlaying={isPlaying}
-              currentTime={currentTime}
-              onPlay={(cur) => {
-                if (!isPlaying) {
-                  setIsPlaying(true);
-                  socket?.emit('sync-play', { roomId, currentTime: cur });
-                }
-              }}
-              onPause={(cur) => {
-                if (isPlaying) {
-                  setIsPlaying(false);
-                  socket?.emit('sync-pause', { roomId, currentTime: cur });
-                }
-              }}
-              onProgress={(cur, dur) => {
-                setCurrentTime(cur);
-                if (dur && dur > 0) setDuration(dur);
-              }}
-              onTrackChange={handleTrackChange}
-              volume={isMuted ? 0 : volume}
+          {/* High-res Album Artwork */}
+          <div
+            className={`w-64 h-64 sm:w-72 sm:h-72 rounded-3xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/15 relative z-10 transition-all duration-700 ${
+              isPlaying ? 'scale-100 shadow-[0_0_50px_rgba(250,45,72,0.35)]' : 'scale-95 opacity-80'
+            }`}
+          >
+            <img
+              src={
+                currentTrack.cover ||
+                `https://img.youtube.com/vi/${currentTrack.trackId || '34Na4j8AVgA'}/hqdefault.jpg`
+              }
+              alt={currentTrack.title}
+              className="w-full h-full object-cover"
             />
-          )}
+            {/* Subtle gloss overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-white/10 pointer-events-none" />
+          </div>
 
-          {currentTrack.source === 'spotify' && (
-            <SpotifyPlayer
-              track={currentTrack}
-              isPlaying={isPlaying}
-            />
-          )}
+          {/* Live Visualizer */}
+          <div className="relative z-10 -mt-2">
+            <AudioVisualizer isPlaying={isPlaying} />
+          </div>
         </div>
 
         {/* Apple Now Playing Card & Controls */}
-        <div className="w-full max-w-xl mx-auto mt-4 apple-glass-card rounded-3xl p-5 sm:p-7 shadow-2xl relative">
-          {/* Track Info & Visualizer */}
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white truncate">
-                {currentTrack.title}
-              </h1>
-              <p className="text-sm font-medium text-[#86868b] truncate mt-0.5">
-                {currentTrack.artist || 'Unknown Artist'}
-              </p>
-            </div>
-
-            {/* Visualizer */}
-            <div className="shrink-0">
-              <AudioVisualizer isPlaying={isPlaying} />
-            </div>
+        <div className="w-full apple-glass-card rounded-3xl p-5 sm:p-6 shadow-2xl relative mt-2">
+          {/* Track Info */}
+          <div className="text-center mb-3">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white truncate">
+              {currentTrack.title}
+            </h1>
+            <p className="text-xs sm:text-sm font-medium text-[#86868b] truncate mt-0.5">
+              {currentTrack.artist || 'Unknown Artist'}
+            </p>
           </div>
 
           {/* Scrubber Progress Bar */}
-          <div className="my-4">
+          <div className="my-3">
             <div className="relative group cursor-pointer flex items-center">
               <input
                 type="range"
@@ -376,32 +408,33 @@ export default function App() {
                 className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#fa2d48] focus:outline-none"
               />
             </div>
-            <div className="flex justify-between items-center text-[11px] font-medium text-white/40 mt-1.5 tabular-nums">
+            <div className="flex justify-between items-center text-[10px] font-medium text-white/40 mt-1.5 tabular-nums">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
           </div>
 
           {/* Primary Controls Dock */}
-          <div className="flex items-center justify-between gap-3 mt-4">
-            {/* Left: Add Track / Source Modal */}
+          <div className="flex items-center justify-between gap-3 mt-3">
+            {/* Left: Change Song */}
             <button
               onClick={() => setIsAddOpen(true)}
-              className="apple-glass-pill hover:bg-white/15 active:scale-95 text-xs font-semibold px-3 py-2 sm:px-4 sm:py-2.5 rounded-full text-white/90 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              className="apple-glass-pill hover:bg-white/15 active:scale-95 text-xs font-semibold px-3 py-2 rounded-full text-white/90 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              title="Search Song"
             >
-              <Plus size={15} />
-              <span className="hidden xs:inline">Change / Add Song</span>
-              <span className="xs:hidden">Song</span>
+              <Search size={14} className="text-[#fa2d48]" />
+              <span className="hidden xs:inline">Search Song</span>
+              <span className="xs:hidden">Search</span>
             </button>
 
             {/* Center: Playback Controls */}
             <div className="flex items-center gap-3 sm:gap-4">
               <button
                 onClick={() => handleSeek(0)}
-                className="p-2 sm:p-2.5 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-all cursor-pointer active:scale-95"
+                className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-all cursor-pointer active:scale-95"
                 title="Restart Song"
               >
-                <RotateCcw size={18} />
+                <RotateCcw size={17} />
               </button>
 
               <button
@@ -410,29 +443,29 @@ export default function App() {
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause size={24} className="fill-white" />
+                  <Pause size={22} className="fill-white" />
                 ) : (
-                  <Play size={24} className="fill-white ml-0.5" />
+                  <Play size={22} className="fill-white ml-0.5" />
                 )}
               </button>
 
               <button
                 onClick={handlePlayNext}
                 disabled={queue.length === 0}
-                className="p-2 sm:p-2.5 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent text-white/70 hover:text-white transition-all cursor-pointer active:scale-95"
+                className="p-2 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent text-white/70 hover:text-white transition-all cursor-pointer active:scale-95"
                 title="Next Song in Queue"
               >
-                <SkipForward size={20} />
+                <SkipForward size={19} />
               </button>
             </div>
 
             {/* Right: Volume Control */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsMuted(!isMuted)}
                 className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-all cursor-pointer"
               >
-                {isMuted || volume === 0 ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                {isMuted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </button>
               <input
                 type="range"
@@ -443,30 +476,23 @@ export default function App() {
                   setVolume(parseInt(e.target.value));
                   if (isMuted) setIsMuted(false);
                 }}
-                className="w-16 sm:w-20 h-1 bg-white/15 rounded-full appearance-none cursor-pointer accent-[#fa2d48] hidden sm:block"
+                className="w-16 h-1 bg-white/15 rounded-full appearance-none cursor-pointer accent-[#fa2d48] hidden sm:block"
               />
             </div>
           </div>
 
-          {/* Quick Reaction Bar Under Player */}
-          <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-around gap-1">
+          {/* Quick Reactions Bar Under Player */}
+          <div className="mt-5 pt-3.5 border-t border-white/5 flex items-center justify-around gap-1">
             {['❤️', '🔥', '💃', '🎧', '😭', '🫶'].map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => handleSendReaction(emoji)}
-                className="text-2xl hover:scale-130 active:scale-90 p-1.5 rounded-2xl hover:bg-white/10 transition-all cursor-pointer select-none"
+                className="text-2xl hover:scale-130 active:scale-90 p-1 rounded-2xl hover:bg-white/10 transition-all cursor-pointer select-none"
               >
                 {emoji}
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Helpful Tip Footer */}
-        <div className="mt-8 text-center text-xs text-white/40 space-y-1">
-          <p>
-            Share room link with your friend — whenever anyone plays, pauses or seeks, both will hear it together in sync!
-          </p>
         </div>
       </main>
 

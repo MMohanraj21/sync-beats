@@ -185,10 +185,8 @@ export default function YouTubePlayer({
   }, [duration, onProgress]);
 
   return (
-    <div className="relative w-full aspect-video md:aspect-[21/9] max-h-[340px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40">
-      <div ref={containerRef} className="w-full h-full pointer-events-none" />
-      {/* Subtle overlay to prevent direct YouTube ads/redirects clicking */}
-      <div className="absolute inset-0 bg-transparent pointer-events-none" />
+    <div className="absolute -left-[9999px] top-0 w-[1px] h-[1px] opacity-0 pointer-events-none overflow-hidden" aria-hidden="true">
+      <div ref={containerRef} />
     </div>
   );
 }
