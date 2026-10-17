@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  color-scheme: dark;
+}
+
+/* Apple-style custom glassmorphism */
+.apple-glass {
+  background: rgba(22, 22, 26, 0.65);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.apple-glass-card {
+  background: rgba(28, 28, 34, 0.55);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.apple-glass-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.apple-glow-button {
+  background: linear-gradient(135deg, #fa2d48 0%, #ff5e62 100%);
+  box-shadow: 0 4px 20px rgba(250, 45, 72, 0.35);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.apple-glow-button:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 8px 28px rgba(250, 45, 72, 0.55);
+}
+.apple-glow-button:active {
+  transform: translateY(0px) scale(0.98);
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Floating reaction animation */
+@keyframes floatUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.6) rotate(-5deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.15) rotate(4deg);
+  }
+  80% {
+    opacity: 0.9;
+    transform: translateY(-180px) scale(1) rotate(-6deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-260px) scale(0.8) rotate(8deg);
+  }
+}
+
+.animate-float-up {
+  animation: floatUp 3.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Glowing Aurora Background */
+.aurora-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.aurora-orb-1 {
+  position: absolute;
+  top: 5%;
+  left: 15%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(250, 45, 72, 0.18) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(80px);
+  animation: float 12s ease-in-out infinite alternate;
+}
+
+.aurora-orb-2 {
+  position: absolute;
+  bottom: 10%;
+  right: 15%;
+  width: 550px;
+  height: 550px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.16) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(90px);
+  animation: float 14s ease-in-out infinite alternate-reverse;
+}
+
+.aurora-orb-3 {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 650px;
+  height: 650px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(100px);
+  animation: pulse-slow 8s ease-in-out infinite;
+}
