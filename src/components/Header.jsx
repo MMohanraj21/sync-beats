@@ -7,6 +7,7 @@ export default function Header({
   users = [],
   onToggleChat,
   onToggleQueue,
+  onOpenListeners,
   unreadChatCount = 0,
   queueCount = 0
 }) {
@@ -47,7 +48,11 @@ export default function Header({
         </div>
 
         {/* Center: Live Listeners Status */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full apple-glass-pill">
+        <button
+          onClick={onOpenListeners}
+          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full apple-glass-pill hover:bg-white/15 transition-all cursor-pointer active:scale-95"
+          title="View connected friends"
+        >
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -67,7 +72,7 @@ export default function Header({
               </span>
             ))}
           </div>
-        </div>
+        </button>
 
         {/* Right Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">

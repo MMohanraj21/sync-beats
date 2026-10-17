@@ -15,7 +15,8 @@ import {
   Wifi,
   Search,
   Disc3,
-  Heart
+  Heart,
+  Users
 } from 'lucide-react';
 
 import Header from './components/Header';
@@ -27,6 +28,8 @@ import SpotifyPlayer from './components/SpotifyPlayer';
 import ChatDrawer from './components/ChatDrawer';
 import QueueModal from './components/QueueModal';
 import AddTrackModal from './components/AddTrackModal';
+import JoinModal from './components/JoinModal';
+import ListenersModal from './components/ListenersModal';
 
 // Random cute room id generator
 function generateRoomId() {
@@ -40,7 +43,13 @@ export default function App() {
   const [socket, setSocket] = useState(null);
   const [roomId, setRoomId] = useState('');
   const [username, setUsername] = useState('');
+  const [avatar, setAvatar] = useState('🎧');
+  const [hasJoined, setHasJoined] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [socketId, setSocketId] = useState('');
+
+  // Toast notifications
+  const [toast, setToast] = useState(null);
 
   // Playback state
   const [currentTrack, setCurrentTrack] = useState({
@@ -69,12 +78,21 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isListenersOpen, setIsListenersOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   // Local interaction debounce
   const isLocalAction = useRef(false);
 
-  // Initialize Room and Socket Connection
+  // Trigger temporary toast
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
+  // Initialize Room & Socket Connection
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
@@ -86,19 +104,29 @@ export default function App() {
     }
 
     const savedName = localStorage.getItem('syncbeats_username');
-    const defaultUser = savedName || `Listener_${Math.floor(10 + Math.random() * 89)}`;
-    setUsername(defaultUser);
+    const savedAvatar = localStorage.getItem('syncbeats_avatar') || '🎧';
 
+    if (savedName) {
+      setUsername(savedName);
+      setAvatar(savedAvatar);
+      // Automatically join if name exists
+      initSocketConnection(selectedRoom, savedName, savedAvatar);
+      setHasJoined(true);
+    }
+  }, []);
+
+  const initSocketConnection = (rId, uName, uAvatar) => {
     const newSocket = io({
       transports: ['websocket', 'polling']
     });
 
     newSocket.on('connect', () => {
       setIsConnected(true);
+      setSocketId(newSocket.id);
       newSocket.emit('join-room', {
-        roomId: selectedRoom,
-        username: defaultUser,
-        avatar: '🎧'
+        roomId: rId,
+        username: uName,
+        avatar: uAvatar
       });
     });
 
@@ -111,36 +139,47 @@ export default function App() {
       if (state.messages) setMessages(state.messages);
     });
 
-    newSocket.on('user-joined', ({ users }) => {
-      setUsers(users);
+    newSocket.on('user-joined', ({ user, users: allUsers }) => {
+      setUsers(allUsers);
+      showToast(`🎉 ${user.username} joined the vibe!`);
     });
 
-    newSocket.on('user-left', ({ users }) => {
-      setUsers(users);
+    newSocket.on('user-left', ({ username: leftName, users: allUsers }) => {
+      setUsers(allUsers);
+      if (leftName) showToast(`👋 ${leftName} left the room`);
     });
 
     // Remote playback actions
-    newSocket.on('sync-play', ({ currentTime: remoteTime }) => {
+    newSocket.on('sync-play', ({ currentTime: remoteTime, triggeredBy }) => {
       if (isLocalAction.current) return;
       if (typeof remoteTime === 'number') setCurrentTime(remoteTime);
       setIsPlaying(true);
+      if (triggeredBy && triggeredBy !== uName) {
+        showToast(`▶ ${triggeredBy} played the song`);
+      }
     });
 
-    newSocket.on('sync-pause', ({ currentTime: remoteTime }) => {
+    newSocket.on('sync-pause', ({ currentTime: remoteTime, triggeredBy }) => {
       if (isLocalAction.current) return;
       if (typeof remoteTime === 'number') setCurrentTime(remoteTime);
       setIsPlaying(false);
+      if (triggeredBy && triggeredBy !== uName) {
+        showToast(`⏸ ${triggeredBy} paused the song`);
+      }
     });
 
-    newSocket.on('sync-seek', ({ currentTime: remoteTime }) => {
+    newSocket.on('sync-seek', ({ currentTime: remoteTime, triggeredBy }) => {
       if (isLocalAction.current) return;
       setCurrentTime(remoteTime);
     });
 
-    newSocket.on('track-changed', ({ track, isPlaying: remotePlaying, currentTime: remoteTime }) => {
+    newSocket.on('track-changed', ({ track, isPlaying: remotePlaying, currentTime: remoteTime, triggeredBy }) => {
       setCurrentTrack(track);
       setIsPlaying(remotePlaying);
       setCurrentTime(remoteTime || 0);
+      if (triggeredBy) {
+        showToast(`🎵 ${triggeredBy} played: ${track.title}`);
+      }
     });
 
     newSocket.on('queue-updated', (newQueue) => {
@@ -165,11 +204,14 @@ export default function App() {
     });
 
     setSocket(newSocket);
+  };
 
-    return () => {
-      newSocket.disconnect();
-    };
-  }, []);
+  const handleJoinLobby = (chosenName, chosenAvatar) => {
+    setUsername(chosenName);
+    setAvatar(chosenAvatar);
+    setHasJoined(true);
+    initSocketConnection(roomId, chosenName, chosenAvatar);
+  };
 
   const formatTime = (seconds) => {
     if (isNaN(seconds) || seconds < 0) return '0:00';
@@ -213,6 +255,7 @@ export default function App() {
   const handleAddToQueue = (track) => {
     if (!socket) return;
     socket.emit('add-to-queue', { roomId, track });
+    showToast(`Added "${track.title}" to queue`);
   };
 
   const handleRemoveFromQueue = (index) => {
@@ -247,6 +290,23 @@ export default function App() {
       {/* Floating Reactions Container */}
       <FloatingReactions reactions={reactions} />
 
+      {/* Real-time Toast Banner */}
+      {toast && (
+        <div className="fixed top-18 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
+          <div className="apple-glass-pill px-4 py-2 rounded-full text-xs font-semibold text-white shadow-2xl border border-white/20 flex items-center gap-2">
+            <span>{toast}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Lobby Join Modal (Only shown if name not chosen) */}
+      {!hasJoined && (
+        <JoinModal
+          roomId={roomId}
+          onJoin={handleJoinLobby}
+        />
+      )}
+
       {/* Apple Glass Top Bar */}
       <Header
         roomId={roomId}
@@ -257,6 +317,7 @@ export default function App() {
           setUnreadChatCount(0);
         }}
         onToggleQueue={() => setIsQueueOpen(!isQueueOpen)}
+        onOpenListeners={() => setIsListenersOpen(true)}
         unreadChatCount={unreadChatCount}
         queueCount={queue.length}
       />
@@ -321,10 +382,10 @@ export default function App() {
       )}
 
       {/* Main Content Area: Pure Music Showcase */}
-      <main className="flex-1 relative z-10 max-w-xl w-full mx-auto px-4 py-5 flex flex-col items-center justify-between">
+      <main className="flex-1 relative z-10 max-w-xl w-full mx-auto px-4 py-4 sm:py-6 flex flex-col items-center justify-between">
         
         {/* Instant In-App Search Bar Trigger */}
-        <div className="w-full mb-4">
+        <div className="w-full mb-3">
           <button
             onClick={() => setIsAddOpen(true)}
             className="w-full apple-glass-pill hover:bg-white/10 active:scale-[0.99] text-left px-4 py-3 rounded-2xl flex items-center justify-between gap-3 text-white/70 transition-all cursor-pointer shadow-lg group border border-white/10"
@@ -341,16 +402,20 @@ export default function App() {
           </button>
         </div>
 
-        {/* Sync Status Badge */}
-        <div className="mb-3 inline-flex items-center gap-2 px-3.5 py-1 rounded-full apple-glass-pill shadow-sm">
+        {/* Sync Status Badge (Clickable to view listeners on mobile) */}
+        <button
+          onClick={() => setIsListenersOpen(true)}
+          className="mb-2 inline-flex items-center gap-2 px-3.5 py-1 rounded-full apple-glass-pill hover:bg-white/15 transition-all cursor-pointer shadow-sm active:scale-95"
+        >
           <Wifi size={12} className={isConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'} />
-          <span className="text-[11px] font-medium text-white/80">
-            {users.length > 1 ? `Synced with ${users.length - 1} friend` : 'Waiting for friend to join room...'}
+          <span className="text-[11px] font-medium text-white/90">
+            {users.length > 1 ? `Synced with ${users.length - 1} friend (${users.map(u => u.username).join(', ')})` : 'Waiting for friend to join room...'}
           </span>
-        </div>
+          <Users size={11} className="text-white/60 ml-0.5" />
+        </button>
 
         {/* Center: Apple Music Album Artwork Showcase (Audio-Only, No Video) */}
-        <div className="relative my-4 flex flex-col items-center">
+        <div className="relative my-3 flex flex-col items-center">
           {/* Dynamic Ambient Glow matching artwork */}
           <div
             className={`absolute -inset-6 rounded-3xl blur-3xl transition-all duration-1000 ${
@@ -521,6 +586,14 @@ export default function App() {
         onClose={() => setIsAddOpen(false)}
         onPlayTrack={handleTrackChange}
         onAddToQueue={handleAddToQueue}
+      />
+
+      <ListenersModal
+        isOpen={isListenersOpen}
+        onClose={() => setIsListenersOpen(false)}
+        users={users}
+        currentUserId={socketId}
+        roomId={roomId}
       />
     </div>
   );
